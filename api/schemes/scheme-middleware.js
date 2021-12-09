@@ -1,5 +1,5 @@
-const Schemes = require('./scheme-model');
-const yup = require('yup');
+const db = require('../../data/db-config')
+
 /*
   If `scheme_id` does not exist in the database:
   status 404
@@ -7,32 +7,21 @@ const yup = require('yup');
     "message": "scheme with scheme_id <actual id> not found"
   }
 */
-const checkSchemeId = (req, res, next) => {
-
-  Schemes.findById(req.params.scheme_id)
-    .then(schemeById => {
-      if (schemeById) {
-        req.scheme = schemeById;
-        next();
-      } else {
-        next({ status: 404, message: `scheme with scheme_id <${req.params.scheme_id}> not found` })
-      }
-    })
-    .catch(next)
+const checkSchemeId = async (req, res, next) => {
+  try{
+    const existing = await db('schemes')
+    .where('scheme_id', req.params.scheme_id)
+    .first()
+    if(!existing){
+      res.status(404).json({message:`scheme with scheme_id ${req.params.scheme_id} not found`})
+    } else {
+      next()
+    }
+  }
+  catch(err){
+    next(err)
+  }
 }
-
-
-
-
-const schemeValidation = yup.object().shape({
-  scheme_name: yup
-    .string()
-    .trim()
-    .typeError("invalid scheme_name")
-    .required("invalid scheme_name")
-})
-
-
 
 /*
   If `scheme_name` is missing, empty string or not a string:
@@ -42,39 +31,13 @@ const schemeValidation = yup.object().shape({
   }
 */
 const validateScheme = (req, res, next) => {
-  schemeValidation.validate(req.body,
-    {
-      strict: true,
-      stripUnknown: true
-    })
-    .then(validate => {
-      Schemes.find()
-        .then(schemes => {
-          let foundSchemes = schemes.filter(scheme => scheme.scheme_name === validate.scheme_name)
-          if (foundSchemes.length < 1) {
-            req.body = validate;
-            next();
-          } else {
-            next({ status: 400, message: 'scheme name is taken' })
-          }
-        })
-        .catch(next)
-    })
-    .catch(err => {
-      next({ status: 400, message: err.message })
-    })
+  if(!req.body.scheme_name||typeof req.body.scheme_name !=='string'||!req.body.scheme_name.trim()){
+    res.status(400).json({message:"invalid scheme_name"})
+  }
+  else {
+    next()
+  }
 }
-
-const stepValidation = yup.object().shape({
-  instructions: yup
-    .string()
-    .trim()
-    .typeError("invalid scheme_name")
-    .required("invalid scheme_name"),
-  step_number: yup
-    .number()
-    .min(1, 'invalid step')
-})
 
 /*
   If `instructions` is missing, empty string or not a string, or
@@ -85,19 +48,17 @@ const stepValidation = yup.object().shape({
   }
 */
 const validateStep = (req, res, next) => {
-
-  stepValidation.validate(req.body,
-    {
-      strict: true,
-      stripUnknown: true
-    })
-    .then(validate => {
-      req.body = validate;
-      next()
-    })
-    .catch(err => {
-      next({ status: 400, message: err.message })
-    })
+  const {instructions, step_number}=req.body
+if(!instructions||
+  typeof instructions !== 'string'||
+  !instructions.trim()||
+  typeof step_number !== 'number'||
+  step_number<1){
+    res.status(400).json({message: "invalid step"})
+  }
+else{
+  next()
+}
 }
 
 module.exports = {
